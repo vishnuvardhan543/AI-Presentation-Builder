@@ -15,6 +15,7 @@ import { usePresentation } from "../contexts/PresentationContext";
 export function PresentationForm() {
   const { toast } = useToast();
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [downloadUrl, setDownloadUrl] = useState(null);
   const fileInputRef = useRef(null);
   const csvInputRef = useRef(null);
   const [csvUploaded, setCsvUploaded] = useState(false);
@@ -36,6 +37,7 @@ export function PresentationForm() {
 
   async function onSubmit(data) {
     setIsSubmitting(true);
+    setDownloadUrl(null); // Reset previous download URL
     const formData = new FormData();
 
     Object.entries(data).forEach(([key, value]) => {
@@ -52,7 +54,7 @@ export function PresentationForm() {
     }
 
     try {
-      const response = await fetch("/api/presentations", {
+      const response = await fetch("http://localhost:5000/generate", {
         method: "POST",
         body: formData,
       });
@@ -63,16 +65,11 @@ export function PresentationForm() {
 
       const blob = await response.blob();
       const url = window.URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `${data.topic}.${data.exportFormat}`;
-      document.body.appendChild(a);
-      a.click();
-      window.URL.revokeObjectURL(url);
+      setDownloadUrl(url); // Store the URL for later download
 
       toast({
         title: "Success!",
-        description: "Your presentation has been generated.",
+        description: "Your presentation has been generated. Click the download link below.",
       });
     } catch (error) {
       toast({
@@ -84,6 +81,23 @@ export function PresentationForm() {
       setIsSubmitting(false);
     }
   }
+
+  const handleDownload = () => {
+    if (downloadUrl) {
+      const a = document.createElement("a");
+      a.href = downloadUrl;
+      const filename = form.getValues("topic").trim() 
+        ? `${form.getValues("topic")}.pptx` 
+        : "presentation.pptx";
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      // Optionally revoke URL after download
+      // window.URL.revokeObjectURL(downloadUrl);
+      // setDownloadUrl(null);
+    }
+  };
 
   const handleCsvUpload = (event) => {
     const file = event.target.files?.[0];
@@ -282,40 +296,6 @@ export function PresentationForm() {
         </div>
 
         <div className="grid gap-4 md:grid-cols-2">
-          <FormField
-            control={form.control}
-            name="exportFormat"
-            render={({ field }) => (
-              <FormItem className="flex items-center justify-between space-y-0 rounded-lg border p-4">
-                <div>
-                  <FormLabel>Export Format</FormLabel>
-                  <FormDescription>Choose your preferred format</FormDescription>
-                </div>
-                <Select onValueChange={field.onChange} value={field.value}>
-                  <FormControl>
-                    <SelectTrigger className="w-[140px]">
-                      <SelectValue />
-                    </SelectTrigger>
-                  </FormControl>
-                  <SelectContent className="bg-white">
-                    <SelectItem value="pptx">
-                      <div className="flex items-center">
-                        <FileType className="w-4 h-4 mr-2" />
-                        PowerPoint
-                      </div>
-                    </SelectItem>
-                    <SelectItem value="pdf">
-                      <div className="flex items-center">
-                        <FileType className="w-4 h-4 mr-2" />
-                        PDF
-                      </div>
-                    </SelectItem>
-                  </SelectContent>
-                </Select>
-              </FormItem>
-            )}
-          />
-
           <div className="flex items-center justify-between space-y-0 rounded-lg border p-4">
             <div>
               <FormLabel>Real-time Collaboration</FormLabel>
@@ -359,6 +339,18 @@ export function PresentationForm() {
             </>
           )}
         </Button>
+
+        {downloadUrl && (
+          <Button
+            type="button"
+            variant="link"
+            className="w-full"
+            onClick={handleDownload}
+          >
+            <FileType className="w-4 h-4 mr-2" />
+            Download Presentation
+          </Button>
+        )}
       </form>
     </Form>
   );

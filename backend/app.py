@@ -1,4 +1,5 @@
 import os
+import logging
 from flask import Flask, send_file, request, jsonify
 from flask_cors import CORS
 from pptx import Presentation
@@ -13,14 +14,21 @@ from io import BytesIO
 import base64
 import pandas as pd
 
+# Configure logging
+logging.basicConfig(level=logging.DEBUG)
+
 # Initialize Flask app and enable CORS
 app = Flask(__name__)
 CORS(app)
 
 # Configure Gemini API
-genai.configure(api_key=os.environ.get('GEMINI_API_KEY'))
+genai_api_key = os.environ.get('AIzaSyBeC7C-2VQK0Q7rAebsfbbTqtPZE9uGBGc')
+if not genai_api_key:
+    app.logger.error("GENAI_API_KEY is not set in the environment!")
+else:
+    genai.configure(api_key=genai_api_key)
 
-# Define theme options
+# Theme options
 THEMES = {
     "professional": {
         "background": RGBColor(230, 242, 255),
@@ -48,69 +56,83 @@ CHART_TYPES = {
 TITLE_FONT_SIZE = Pt(32)
 CONTENT_FONT_SIZE = Pt(18)
 
-# Process titles from API response
 def process_titles(text):
-    lines = text.strip().split('\n')
-    titles = [line.strip() for line in lines if line.strip()]
-    return titles[:3]
+    try:
+        lines = text.strip().split('\n')
+        titles = [line.strip() for line in lines if line.strip()]
+        return titles[:3]
+    except Exception as e:
+        app.logger.exception("Error processing titles")
+        return [text]
 
-# Process bullet points to ensure consistent formatting
 def process_bullet_points(text):
-    lines = text.split('\n')
-    cleaned_lines = []
-    for line in lines:
-        line = line.strip()
-        if line:
-            # Remove any leading numbers or bullets
-            line = re.sub(r'^[\d\.\-\*\s]+', '', line)
-            cleaned_lines.append('- ' + line)
-    return '\n'.join(cleaned_lines)
+    try:
+        lines = text.split('\n')
+        cleaned_lines = []
+        for line in lines:
+            line = line.strip()
+            if line:
+                line = re.sub(r'^[\d\.\-\*\s]+', '', line)
+                cleaned_lines.append('- ' + line)
+        return '\n'.join(cleaned_lines)
+    except Exception as e:
+        app.logger.exception("Error processing bullet points")
+        return text
 
-# Generate slide titles using the Gemini API
 def generate_slide_titles(content, language="en"):
-    prompt = f"Generate exactly 3 concise slide titles for a presentation on '{content}' in {language}, no preamble or numbering."
-    response = genai.generate_text(
-        model="gemini-2.0-flash",
-        prompt=prompt,
-        max_output_tokens=100,
-        temperature=0.7
-    )
-    titles_text = response.text.strip()
-    titles = process_titles(titles_text)
-    while len(titles) < 3:
-        titles.append(f"{content} Overview {len(titles) + 1}")
-    return titles[:3]
+    try:
+        prompt = f"Generate exactly 3 concise slide titles for a presentation on '{content}' in {language}, no preamble or numbering."
+        app.logger.debug(f"Generating titles with prompt: {prompt}")
+        response = genai.generate_text(
+            model="gemini-2.0-flash",  # Verify this model name with Gemini API docs
+            prompt=prompt,
+            max_output_tokens=100,
+            temperature=0.7
+        )
+        titles_text = response.text.strip()
+        app.logger.debug(f"Raw titles response: {titles_text}")
+        titles = process_titles(titles_text)
+        while len(titles) < 3:
+            titles.append(f"{content} Overview {len(titles) + 1}")
+        return titles[:3]
+    except Exception as e:
+        app.logger.exception("Error generating slide titles")
+        return [f"{content} Slide {i+1}" for i in range(3)]
 
-# Generate slide content using the Gemini API
 def generate_slide_content(slide_title, has_image=True, summarize=False, language="en"):
-    if summarize:
-        prompt = f"Summarize content for '{slide_title}' into two concise paragraphs (max 30 words each) in {language}, no preamble or labels."
-        max_tokens = 100
-    elif has_image:
-        prompt = f"Generate two concise paragraphs (max 50 words each) for '{slide_title}' in {language}, no preamble or labels like 'Option 1:'."
-        max_tokens = 150
-    else:
-        prompt = f"Generate six concise bullet points (max 25 words each) for '{slide_title}' in {language}. Use '-' as bullet marker, no numbering or labels like 'point 1'."
-        max_tokens = 300
-    response = genai.generate_text(
-        model="gemini-2.0-flash",
-        prompt=prompt,
-        max_output_tokens=max_tokens,
-        temperature=0.7
-    )
-    content = response.text.strip()
-    if not has_image and not summarize:
-        content = process_bullet_points(content)
-    return content
+    try:
+        if summarize:
+            prompt = f"Summarize content for '{slide_title}' into two concise paragraphs (max 30 words each) in {language}, no preamble or labels."
+            max_tokens = 100
+        elif has_image:
+            prompt = f"Generate two concise paragraphs (max 50 words each) for '{slide_title}' in {language}, no preamble or labels."
+            max_tokens = 150
+        else:
+            prompt = f"Generate six concise bullet points (max 25 words each) for '{slide_title}' in {language}. Use '-' as bullet marker, no numbering."
+            max_tokens = 300
+        app.logger.debug(f"Generating content with prompt: {prompt}")
+        response = genai.generate_text(
+            model="gemini-2.0-flash",  # Verify this model name
+            prompt=prompt,
+            max_output_tokens=max_tokens,
+            temperature=0.7
+        )
+        content = response.text.strip()
+        app.logger.debug(f"Raw content response: {content}")
+        if not has_image and not summarize:
+            content = process_bullet_points(content)
+        return content
+    except Exception as e:
+        app.logger.exception(f"Content generation failed for '{slide_title}': {str(e)}")
+        return "Failed to generate content. Check API key or model name."
 
-# Generate image using Stable Diffusion API
 def generate_image(prompt, language="en"):
-    api_url = "https://api.stability.ai/v1/generation/stable-diffusion-xl-1024-v1-0/text-to-image"
-    api_key = os.environ.get('STABILITY_API_KEY')
-    if not api_key:
-        print("STABILITY_API_KEY not set")
+    stability_api_key = os.environ.get('sk-rU0NqF5CAhM2fBY1KsTrA3J2oIZF7dNvP13tdZt0anhl6AoR')
+    if not stability_api_key:
+        app.logger.error("STABILITY_API_KEY is not set!")
         return None
-    headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
+    api_url = "https://api.stability.ai/v1/generation/stable-diffusion-xl-1024-v1-0/text-to-image"
+    headers = {"Authorization": f"Bearer {stability_api_key}", "Content-Type": "application/json"}
     data = {
         "text_prompts": [{"text": f"{prompt}, professional high-quality illustration, styled for {language} audience"}],
         "cfg_scale": 7,
@@ -120,18 +142,18 @@ def generate_image(prompt, language="en"):
         "steps": 30,
     }
     try:
+        app.logger.debug(f"Requesting image with data: {data}")
         response = requests.post(api_url, headers=headers, json=data)
         if response.status_code == 200:
             image_data = response.json()["artifacts"][0]["base64"]
             return BytesIO(base64.b64decode(image_data))
         else:
-            print(f"Image generation failed: {response.status_code} - {response.text}")
+            app.logger.error(f"Image generation failed: {response.status_code} - {response.text}")
             return None
     except Exception as e:
-        print(f"Error generating image: {e}")
+        app.logger.exception("Error generating image")
         return None
 
-# Generate chart from CSV data
 def generate_chart(slide, csv_file, chart_type="bar"):
     try:
         df = pd.read_csv(csv_file)
@@ -146,76 +168,82 @@ def generate_chart(slide, csv_file, chart_type="bar"):
             chart_data
         )
     except Exception as e:
-        print(f"Error generating chart: {e}")
+        app.logger.exception("Error generating chart")
 
-# Create the PowerPoint presentation
 def create_presentation(topic, text_file, csv_file, theme="professional", language="en", include_images=True, summarize=False, chart_type="bar"):
-    prs = Presentation()
-    selected_theme = THEMES.get(theme, THEMES["professional"])
+    try:
+        prs = Presentation()
+        selected_theme = THEMES.get(theme, THEMES["professional"])
 
-    # Determine content source
-    content = topic
-    if text_file:
-        content = text_file.read().decode('utf-8')
+        # Determine content source
+        content = topic
+        if text_file:
+            content = text_file.read().decode('utf-8')
+        app.logger.debug(f"Content: {content[:100]}...")
 
-    # Title slide
-    title_slide = prs.slides.add_slide(prs.slide_layouts[0])
-    title_slide.shapes.title.text = content.split('\n')[0]
-    title_slide.shapes.title.text_frame.paragraphs[0].font.size = TITLE_FONT_SIZE
-    title_slide.shapes.title.text_frame.paragraphs[0].font.name = selected_theme["font_name"]
-    title_slide.shapes.title.text_frame.paragraphs[0].font.color.rgb = selected_theme["title_color"]
-    if len(title_slide.placeholders) > 1:
-        title_slide.placeholders[1].text = "Powered by AI"
-        title_slide.placeholders[1].text_frame.paragraphs[0].font.size = Pt(24)
-        title_slide.placeholders[1].text_frame.paragraphs[0].font.color.rgb = selected_theme["text_color"]
-    title_slide.background.fill.solid()
-    title_slide.background.fill.fore_color.rgb = selected_theme["background"]
+        # Title slide
+        title_slide = prs.slides.add_slide(prs.slide_layouts[0])
+        title_slide.shapes.title.text = content.split('\n')[0]
+        title_slide.shapes.title.text_frame.paragraphs[0].font.size = TITLE_FONT_SIZE
+        title_slide.shapes.title.text_frame.paragraphs[0].font.name = selected_theme["font_name"]
+        title_slide.shapes.title.text_frame.paragraphs[0].font.color.rgb = selected_theme["title_color"]
+        if len(title_slide.placeholders) > 1:
+            title_slide.placeholders[1].text = "Powered by AI"
+            title_slide.placeholders[1].text_frame.paragraphs[0].font.size = Pt(24)
+            title_slide.placeholders[1].text_frame.paragraphs[0].font.color.rgb = selected_theme["text_color"]
+        title_slide.background.fill.solid()
+        title_slide.background.fill.fore_color.rgb = selected_theme["background"]
 
-    # Generate content slides
-    slide_titles = generate_slide_titles(content, language)
-    for i, title in enumerate(slide_titles):
-        slide = prs.slides.add_slide(prs.slide_layouts[5])
-        slide.background.fill.solid()
-        slide.background.fill.fore_color.rgb = selected_theme["background"]
+        # Content slides
+        slide_titles = generate_slide_titles(content, language)
+        for i, title in enumerate(slide_titles):
+            slide = prs.slides.add_slide(prs.slide_layouts[5])
+            slide.background.fill.solid()
+            slide.background.fill.fore_color.rgb = selected_theme["background"]
 
-        slide.shapes.title.text = title
-        slide.shapes.title.text_frame.paragraphs[0].font.size = TITLE_FONT_SIZE
-        slide.shapes.title.text_frame.paragraphs[0].font.name = selected_theme["font_name"]
-        slide.shapes.title.text_frame.paragraphs[0].font.color.rgb = selected_theme["title_color"]
+            slide.shapes.title.text = title
+            slide.shapes.title.text_frame.paragraphs[0].font.size = TITLE_FONT_SIZE
+            slide.shapes.title.text_frame.paragraphs[0].font.name = selected_theme["font_name"]
+            slide.shapes.title.text_frame.paragraphs[0].font.color.rgb = selected_theme["title_color"]
 
-        has_image = (i == 0 and include_images)
-        content = generate_slide_content(title, has_image=has_image, summarize=summarize, language=language)
+            has_image = (i == 0 and include_images)
+            content_text = generate_slide_content(title, has_image=has_image, summarize=summarize, language=language)
 
-        content_left = Inches(0.5)
-        content_top = Inches(1.2)
-        content_width = Inches(4.5) if has_image else Inches(9)
-        content_height = Inches(5.5)
-        textbox = slide.shapes.add_textbox(content_left, content_top, content_width, content_height)
-        text_frame = textbox.text_frame
-        text_frame.text = content
-        text_frame.word_wrap = True
-        for paragraph in text_frame.paragraphs:
-            paragraph.font.size = CONTENT_FONT_SIZE
-            paragraph.font.name = selected_theme["font_name"]
-            paragraph.font.color.rgb = selected_theme["text_color"]
-            paragraph.space_after = Pt(8)
+            content_left = Inches(0.5)
+            content_top = Inches(1.2)
+            content_width = Inches(4.5) if has_image else Inches(9)
+            content_height = Inches(5.5)
+            textbox = slide.shapes.add_textbox(content_left, content_top, content_width, content_height)
+            text_frame = textbox.text_frame
+            text_frame.text = content_text
+            text_frame.word_wrap = True
+            for paragraph in text_frame.paragraphs:
+                paragraph.font.size = CONTENT_FONT_SIZE
+                paragraph.font.name = selected_theme["font_name"]
+                paragraph.font.color.rgb = selected_theme["text_color"]
+                paragraph.space_after = Pt(8)
 
-        if has_image:
-            image_stream = generate_image(f"{title} related to {content}", language)
-            if image_stream:
-                slide.shapes.add_picture(image_stream, Inches(5.5), Inches(1.2), width=Inches(4))
+            if has_image:
+                image_stream = generate_image(f"{title} related to {content_text}", language)
+                if image_stream:
+                    slide.shapes.add_picture(image_stream, Inches(5.5), Inches(1.2), width=Inches(4))
+                else:
+                    app.logger.error("No image returned for slide: " + title)
 
-        if csv_file and i == 1:  # Add chart to second slide
-            csv_file.seek(0)  # Reset file pointer
-            generate_chart(slide, csv_file, chart_type)
+            if csv_file and i == 1:
+                csv_file.seek(0)
+                generate_chart(slide, csv_file, chart_type)
 
-    output_dir = "generated_ppt"
-    os.makedirs(output_dir, exist_ok=True)
-    output_filepath = os.path.join(output_dir, f"{topic or 'presentation'}_presentation.pptx")
-    prs.save(output_filepath)
-    return output_filepath
+        output_dir = "generated_ppt"
+        os.makedirs(output_dir, exist_ok=True)
+        output_filepath = os.path.join(output_dir, f"{topic or 'presentation'}_presentation.pptx")
+        prs.save(output_filepath)
+        app.logger.debug(f"Saved to {output_filepath}")
+        return output_filepath
+    except Exception as e:
+        app.logger.exception("Error in create_presentation")
+        raise e
 
-# API endpoint to generate and download the presentation
 @app.route('/generate', methods=['POST'])
 def generate():
     topic = request.form.get('topic')
@@ -229,9 +257,10 @@ def generate():
     export_format = request.form.get('exportFormat', 'pptx')
 
     if not topic and not text_file:
-        return jsonify({"error": "Topic or text file is required"}), 400
+        return jsonify({"error": "Topic or text file required"}), 400
 
     try:
+        app.logger.debug("Generating presentation")
         pptx_path = create_presentation(
             topic=topic,
             text_file=text_file,
@@ -243,10 +272,13 @@ def generate():
             chart_type=chart_type
         )
         if export_format == 'pdf':
-            return jsonify({"error": "PDF export not yet implemented"}), 501
-        return send_file(pptx_path, as_attachment=True, download_name=f"{topic or 'presentation'}.pptx")
+            return jsonify({"error": "PDF export not implemented"}), 501
+
+        # Set explicit download name with .pptx extension
+        download_name = f"{topic or 'presentation'}.pptx"
+        return send_file(pptx_path, as_attachment=True, download_name=download_name)
     except Exception as e:
-        print(f"Error generating presentation: {e}")
+        app.logger.exception("Error generating presentation")
         return jsonify({"error": str(e)}), 500
 
 if __name__ == "__main__":
