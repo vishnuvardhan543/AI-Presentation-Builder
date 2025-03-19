@@ -7,6 +7,8 @@ from pptx.util import Pt, Inches
 from pptx.dml.color import RGBColor
 from pptx.chart.data import CategoryChartData
 from pptx.enum.chart import XL_CHART_TYPE
+from pptx.oxml.xmlchemy import OxmlElement
+from pptx.oxml.ns import qn
 import google.generativeai as genai
 import re
 import requests
@@ -32,19 +34,39 @@ if not genai_api_key:
     raise ValueError("GENAI_API_KEY is required")
 genai.configure(api_key=genai_api_key)
 
-# Theme options
+# Enhanced theme options with gradients and shadows
 THEMES = {
-    "professional": {
-        "background": RGBColor(230, 242, 255),
-        "title_color": RGBColor(0, 102, 204),
-        "text_color": RGBColor(51, 51, 51),
-        "font_name": "Calibri",
+    "corporate": {
+        "gradient_start": RGBColor(0, 51, 102),  # Dark blue
+        "gradient_end": RGBColor(173, 216, 230),  # Light blue
+        "title_color": RGBColor(255, 255, 255),   # White
+        "text_color": RGBColor(255, 255, 255),    # White
+        "font_name": "Arial",
+        "shadow": True,
     },
-    "modern": {
-        "background": RGBColor(245, 245, 245),
-        "title_color": RGBColor(33, 150, 243),
-        "text_color": RGBColor(66, 66, 66),
+    "creative": {
+        "gradient_start": RGBColor(147, 112, 219),  # Purple
+        "gradient_end": RGBColor(255, 182, 193),    # Light pink
+        "title_color": RGBColor(255, 255, 255),     # White
+        "text_color": RGBColor(240, 240, 240),      # Off-white
+        "font_name": "Montserrat",
+        "shadow": True,
+    },
+    "minimal": {
+        "gradient_start": RGBColor(245, 245, 245),  # Light gray
+        "gradient_end": RGBColor(255, 255, 255),    # White
+        "title_color": RGBColor(33, 33, 33),        # Dark gray
+        "text_color": RGBColor(66, 66, 66),         # Medium gray
         "font_name": "Helvetica",
+        "shadow": False,
+    },
+    "bold": {
+        "gradient_start": RGBColor(255, 69, 0),     # Red-orange
+        "gradient_end": RGBColor(255, 215, 0),      # Gold
+        "title_color": RGBColor(255, 255, 255),     # White
+        "text_color": RGBColor(255, 255, 255),      # White
+        "font_name": "Impact",
+        "shadow": True,
     }
 }
 
@@ -57,8 +79,49 @@ CHART_TYPES = {
 }
 
 # Presentation styling constants
-TITLE_FONT_SIZE = Pt(32)
-CONTENT_FONT_SIZE = Pt(18)
+TITLE_FONT_SIZE = Pt(36)  # Larger for impact
+CONTENT_FONT_SIZE = Pt(20)  # Slightly bigger for readability
+
+# Function to apply gradient background
+def apply_gradient(slide, start_color, end_color):
+    background = slide.background
+    fill = background.fill
+    fill.gradient()
+    fill.gradient_stops[0].color.rgb = start_color
+    fill.gradient_stops[1].color.rgb = end_color
+    fill.gradient_angle = 45  # Diagonal gradient
+
+# Function to add shadow to text
+def add_text_shadow(text_frame):
+    for paragraph in text_frame.paragraphs:
+        for run in paragraph.runs:
+            add_shadow_to_run(run)
+
+def add_shadow_to_run(run):
+    rPr = run._r.get_or_add_rPr()
+    effectLst = rPr.find(qn('a:effectLst'))
+    if effectLst is None:
+        effectLst = OxmlElement('a:effectLst')
+        rPr.append(effectLst)
+    
+    # Check if outerShdw already exists
+    outerShdw = effectLst.find(qn('a:outerShdw'))
+    if outerShdw is None:
+        outerShdw = OxmlElement('a:outerShdw')
+        outerShdw.set('blurRad', '40000')  # Blur radius (~4pt)
+        outerShdw.set('dist', '20000')     # Distance (~2pt)
+        outerShdw.set('dir', '5400000')    # Direction (45 degrees)
+        outerShdw.set('rotWithShape', '0')
+        
+        srgbClr = OxmlElement('a:srgbClr')
+        srgbClr.set('val', '323232')  # Dark gray (RGB: 50, 50, 50)
+        
+        alpha = OxmlElement('a:alpha')
+        alpha.set('val', '50000')  # 50% opacity
+        srgbClr.append(alpha)
+        
+        outerShdw.append(srgbClr)
+        effectLst.append(outerShdw)
 
 def process_titles(text):
     try:
@@ -76,9 +139,8 @@ def process_bullet_points(text):
         for line in lines:
             line = line.strip()
             if line:
-                # Remove Markdown asterisks (*) and other unwanted characters
-                line = re.sub(r'[\*\[\]]', '', line)  # Remove *, **, [, ]
-                line = re.sub(r'^[\d\.\-\s]+', '', line)  # Remove leading numbers, dots, dashes
+                line = re.sub(r'[\*\[\]]', '', line)
+                line = re.sub(r'^[\d\.\-\s]+', '', line)
                 cleaned_lines.append('- ' + line.strip())
         return '\n'.join(cleaned_lines)
     except Exception as e:
@@ -142,14 +204,14 @@ def generate_image(prompt, language="en"):
     try:
         app.logger.debug(f"Requesting image with data: {data}")
         response = requests.post(api_url, headers=headers, json=data)
-        response.raise_for_status()  # Raise an exception for bad status codes
+        response.raise_for_status()
+        if "insufficient_balance" in response.text.lower():
+            app.logger.error("Stability AI account has insufficient balance to generate image.")
+            return None
         image_data = response.json()["artifacts"][0]["base64"]
         image_stream = BytesIO(base64.b64decode(image_data))
         app.logger.debug(f"Image generated successfully for prompt: {prompt}")
         return image_stream
-    except requests.exceptions.RequestException as e:
-        app.logger.error(f"Image generation failed: {e} - {response.text if 'response' in locals() else 'No response'}")
-        return None
     except Exception as e:
         app.logger.exception(f"Error generating image: {str(e)}")
         return None
@@ -161,77 +223,101 @@ def generate_chart(slide, csv_file, chart_type="bar"):
         chart_data.categories = df.iloc[:, 0].tolist()
         chart_data.add_series('Data', df.iloc[:, 1].tolist())
         chart_type_enum = CHART_TYPES.get(chart_type, XL_CHART_TYPE.COLUMN_CLUSTERED)
-        slide.shapes.add_chart(
+        chart = slide.shapes.add_chart(
             chart_type_enum,
-            Inches(2), Inches(2),
-            Inches(6), Inches(4),
+            Inches(5.5), Inches(1.5),  # Right side position
+            Inches(4.0), Inches(3.0),  # Adjusted size
             chart_data
-        )
+        ).chart
+        chart.has_title = True
+        chart.chart_title.text_frame.text = "Data Overview"
+        chart.chart_title.text_frame.paragraphs[0].font.size = Pt(14)
     except Exception as e:
         app.logger.exception("Error generating chart")
 
-def create_presentation(topic, text_file, csv_file, theme="professional", language="en", include_images=True, summarize=False, chart_type="bar"):
+def create_presentation(topic, text_file, csv_file, theme="corporate", language="en", include_images=True, summarize=False, chart_type="bar"):
     try:
         prs = Presentation()
-        selected_theme = THEMES.get(theme, THEMES["professional"])
+        selected_theme = THEMES.get(theme, THEMES["corporate"])
 
-        # Determine content source
         content = topic
         if text_file:
             content = text_file.read().decode('utf-8')
         app.logger.debug(f"Content: {content[:100]}...")
 
-        # Title slide
+        slide_titles = generate_slide_titles(content, language)
+        
+        # Title slide with enhanced design
         title_slide = prs.slides.add_slide(prs.slide_layouts[0])
-        title_slide.shapes.title.text = content.split('\n')[0]
-        title_slide.shapes.title.text_frame.paragraphs[0].font.size = TITLE_FONT_SIZE
-        title_slide.shapes.title.text_frame.paragraphs[0].font.name = selected_theme["font_name"]
-        title_slide.shapes.title.text_frame.paragraphs[0].font.color.rgb = selected_theme["title_color"]
+        apply_gradient(title_slide, selected_theme["gradient_start"], selected_theme["gradient_end"])
+        title_slide.shapes.title.text = slide_titles[0]
+        tf = title_slide.shapes.title.text_frame
+        tf.paragraphs[0].font.size = TITLE_FONT_SIZE
+        tf.paragraphs[0].font.name = selected_theme["font_name"]
+        tf.paragraphs[0].font.color.rgb = selected_theme["title_color"]
+        tf.paragraphs[0].font.bold = True
+        if selected_theme["shadow"]:
+            add_text_shadow(tf)
         if len(title_slide.placeholders) > 1:
-            title_slide.placeholders[1].text = "Powered by AI"
-            title_slide.placeholders[1].text_frame.paragraphs[0].font.size = Pt(24)
-            title_slide.placeholders[1].text_frame.paragraphs[0].font.color.rgb = selected_theme["text_color"]
-        title_slide.background.fill.solid()
-        title_slide.background.fill.fore_color.rgb = selected_theme["background"]
+            subtitle = title_slide.placeholders[1]
+            subtitle.text = "Powered by AI"
+            subtitle.text_frame.paragraphs[0].font.size = Pt(24)
+            subtitle.text_frame.paragraphs[0].font.name = selected_theme["font_name"]
+            subtitle.text_frame.paragraphs[0].font.color.rgb = selected_theme["text_color"]
+            if selected_theme["shadow"]:
+                add_text_shadow(subtitle.text_frame)
 
         # Content slides
-        slide_titles = generate_slide_titles(content, language)
-        for i, title in enumerate(slide_titles):
-            slide = prs.slides.add_slide(prs.slide_layouts[5])
-            slide.background.fill.solid()
-            slide.background.fill.fore_color.rgb = selected_theme["background"]
+        for i, title in enumerate(slide_titles[1:], start=1):
+            # Use layout 1 (title + content) for Slide 2 with image
+            slide_layout = prs.slide_layouts[1] if (i == 1 and include_images) else prs.slide_layouts[5]
+            slide = prs.slides.add_slide(slide_layout)
+            apply_gradient(slide, selected_theme["gradient_start"], selected_theme["gradient_end"])
 
             slide.shapes.title.text = title
-            slide.shapes.title.text_frame.paragraphs[0].font.size = TITLE_FONT_SIZE
-            slide.shapes.title.text_frame.paragraphs[0].font.name = selected_theme["font_name"]
-            slide.shapes.title.text_frame.paragraphs[0].font.color.rgb = selected_theme["title_color"]
+            tf = slide.shapes.title.text_frame
+            tf.paragraphs[0].font.size = TITLE_FONT_SIZE
+            tf.paragraphs[0].font.name = selected_theme["font_name"]
+            tf.paragraphs[0].font.color.rgb = selected_theme["title_color"]
+            tf.paragraphs[0].font.bold = True
+            if selected_theme["shadow"]:
+                add_text_shadow(tf)
 
-            has_image = (i == 0 and include_images)
+            has_image = (i == 1 and include_images)
+            has_chart = (csv_file and i == 2)
+            content_width = Inches(5.0) if (has_image or has_chart) else Inches(9.0)  # Adjusted width
             content_text = generate_slide_content(title, has_image=has_image, summarize=summarize, language=language)
 
-            content_left = Inches(0.5)
-            content_top = Inches(1.2)
-            content_width = Inches(4.5) if has_image else Inches(9)
-            content_height = Inches(5.5)
-            textbox = slide.shapes.add_textbox(content_left, content_top, content_width, content_height)
-            text_frame = textbox.text_frame
-            text_frame.text = content_text
-            text_frame.word_wrap = True
-            for paragraph in text_frame.paragraphs:
+            if slide_layout == prs.slide_layouts[1] and has_image:
+                # Use the content placeholder for text
+                content_placeholder = slide.placeholders[1]
+                content_placeholder.text = content_text
+                tf = content_placeholder.text_frame
+            else:
+                # Manually add textbox with adjusted width
+                textbox = slide.shapes.add_textbox(Inches(0.5), Inches(1.5), content_width, Inches(5.0))
+                tf = textbox.text_frame
+                tf.text = content_text
+
+            tf.word_wrap = True
+            for paragraph in tf.paragraphs:
                 paragraph.font.size = CONTENT_FONT_SIZE
                 paragraph.font.name = selected_theme["font_name"]
                 paragraph.font.color.rgb = selected_theme["text_color"]
-                paragraph.space_after = Pt(8)
+                paragraph.space_after = Pt(12)
+                if selected_theme["shadow"]:
+                    add_text_shadow(tf)
 
             if has_image:
                 image_stream = generate_image(f"{title} related to {content_text}", language)
                 if image_stream:
-                    slide.shapes.add_picture(image_stream, Inches(5.5), Inches(1.2), width=Inches(4))
+                    # Add image to the right side
+                    slide.shapes.add_picture(image_stream, Inches(5.5), Inches(1.5), width=Inches(4.0))
                     app.logger.debug(f"Image added to slide: {title}")
                 else:
                     app.logger.error(f"No image returned for slide: {title}")
 
-            if csv_file and i == 1:
+            if has_chart:
                 csv_file.seek(0)
                 generate_chart(slide, csv_file, chart_type)
 
@@ -250,7 +336,7 @@ def generate():
     topic = request.form.get('topic')
     text_file = request.files.get('textFile')
     csv_file = request.files.get('csvFile')
-    theme = request.form.get('theme', 'professional')
+    theme = request.form.get('theme', 'corporate')
     language = request.form.get('language', 'en')
     include_images = request.form.get('includeImages', 'true') == 'true'
     summarize = request.form.get('summarize', 'false') == 'true'
