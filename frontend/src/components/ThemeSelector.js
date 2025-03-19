@@ -68,8 +68,8 @@ export function ThemeSelector({ value, variant, onChange, onVariantChange }) {
           <SelectTrigger>
             <SelectValue placeholder="Select variant" />
           </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="professional">Professional</SelectItem>
+          <SelectContent className="bg-white">
+          <SelectItem value="professional">Professional</SelectItem>
             <SelectItem value="tint">Tint</SelectItem>
             <SelectItem value="vibrant">Vibrant</SelectItem>
           </SelectContent>

@@ -8,7 +8,8 @@ export default function Home() {
     <div className="min-h-screen bg-gradient-to-b from-background to-background/95 p-6">
       <div className="max-w-6xl mx-auto space-y-8">
         <div className="text-center space-y-4">
-          <h1 className="text-5xl font-bold tracking-tight bg-gradient-to-r from-primary to-primary/60 bg-clip-text text-transparent">
+          {/* Changed heading color to black */}
+          <h1 className="text-5xl font-bold tracking-tight text-black">
             AI Presentation Builder
           </h1>
           <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
@@ -28,7 +29,8 @@ export default function Home() {
         </div>
 
         <Tabs defaultValue="create" className="w-full">
-          <TabsList className="grid w-full max-w-md mx-auto grid-cols-2">
+          {/* Added bg-white to the TabsList */}
+          <TabsList className="grid w-full max-w-md mx-auto grid-cols-2 bg-white">
             <TabsTrigger value="create">Create Presentation</TabsTrigger>
             <TabsTrigger value="preview">Live Preview</TabsTrigger>
           </TabsList>

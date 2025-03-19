@@ -162,7 +162,7 @@ export function PresentationForm() {
                       <SelectValue placeholder="Select language" />
                     </SelectTrigger>
                   </FormControl>
-                  <SelectContent>
+                  <SelectContent className="bg-white">
                     <SelectItem value="en">English</SelectItem>
                     <SelectItem value="es">Spanish</SelectItem>
                     <SelectItem value="fr">French</SelectItem>
@@ -205,7 +205,7 @@ export function PresentationForm() {
                       <SelectValue placeholder="Select chart type" />
                     </SelectTrigger>
                   </FormControl>
-                  <SelectContent>
+                  <SelectContent className="bg-white">
                     <SelectItem value="bar">
                       <div className="flex items-center">
                         <BarChart className="w-4 h-4 mr-2" />
@@ -297,7 +297,7 @@ export function PresentationForm() {
                       <SelectValue />
                     </SelectTrigger>
                   </FormControl>
-                  <SelectContent>
+                  <SelectContent className="bg-white">
                     <SelectItem value="pptx">
                       <div className="flex items-center">
                         <FileType className="w-4 h-4 mr-2" />
