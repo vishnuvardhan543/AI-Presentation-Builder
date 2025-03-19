@@ -5,6 +5,8 @@ import { Toaster } from "./components/ui/Toaster";
 import { PresentationProvider } from "./contexts/PresentationContext";
 import NotFound from "./pages/NotFound";
 import Home from "./pages/Home";
+import './App.css';
+
 
 function Router() {
   return (
