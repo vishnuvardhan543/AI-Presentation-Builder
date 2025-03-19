@@ -18,7 +18,7 @@ app = Flask(__name__)
 CORS(app)
 
 # Configure Gemini API
-genai.configure(api_key=os.environ.get('AIzaSyBeC7C-2VQK0Q7rAebsfbbTqtPZE9uGBGc'))
+genai.configure(api_key=os.environ.get('GEMINI_API_KEY'))
 
 # Define theme options
 THEMES = {
@@ -106,7 +106,7 @@ def generate_slide_content(slide_title, has_image=True, summarize=False, languag
 # Generate image using Stable Diffusion API
 def generate_image(prompt, language="en"):
     api_url = "https://api.stability.ai/v1/generation/stable-diffusion-xl-1024-v1-0/text-to-image"
-    api_key = os.environ.get('sk-rU0NqF5CAhM2fBY1KsTrA3J2oIZF7dNvP13tdZt0anhl6AoR')
+    api_key = os.environ.get('STABILITY_API_KEY')
     if not api_key:
         print("STABILITY_API_KEY not set")
         return None
