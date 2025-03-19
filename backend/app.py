@@ -79,8 +79,8 @@ CHART_TYPES = {
 }
 
 # Presentation styling constants
-TITLE_FONT_SIZE = Pt(36)  # Larger for impact
-CONTENT_FONT_SIZE = Pt(20)  # Slightly bigger for readability
+TITLE_FONT_SIZE = Pt(36)
+CONTENT_FONT_SIZE = Pt(20)
 
 # Function to apply gradient background
 def apply_gradient(slide, start_color, end_color):
@@ -89,7 +89,7 @@ def apply_gradient(slide, start_color, end_color):
     fill.gradient()
     fill.gradient_stops[0].color.rgb = start_color
     fill.gradient_stops[1].color.rgb = end_color
-    fill.gradient_angle = 45  # Diagonal gradient
+    fill.gradient_angle = 45
 
 # Function to add shadow to text
 def add_text_shadow(text_frame):
@@ -104,20 +104,19 @@ def add_shadow_to_run(run):
         effectLst = OxmlElement('a:effectLst')
         rPr.append(effectLst)
     
-    # Check if outerShdw already exists
     outerShdw = effectLst.find(qn('a:outerShdw'))
     if outerShdw is None:
         outerShdw = OxmlElement('a:outerShdw')
-        outerShdw.set('blurRad', '40000')  # Blur radius (~4pt)
-        outerShdw.set('dist', '20000')     # Distance (~2pt)
-        outerShdw.set('dir', '5400000')    # Direction (45 degrees)
+        outerShdw.set('blurRad', '40000')
+        outerShdw.set('dist', '20000')
+        outerShdw.set('dir', '5400000')
         outerShdw.set('rotWithShape', '0')
         
         srgbClr = OxmlElement('a:srgbClr')
-        srgbClr.set('val', '323232')  # Dark gray (RGB: 50, 50, 50)
+        srgbClr.set('val', '323232')
         
         alpha = OxmlElement('a:alpha')
-        alpha.set('val', '50000')  # 50% opacity
+        alpha.set('val', '50000')
         srgbClr.append(alpha)
         
         outerShdw.append(srgbClr)
@@ -225,8 +224,8 @@ def generate_chart(slide, csv_file, chart_type="bar"):
         chart_type_enum = CHART_TYPES.get(chart_type, XL_CHART_TYPE.COLUMN_CLUSTERED)
         chart = slide.shapes.add_chart(
             chart_type_enum,
-            Inches(5.5), Inches(1.5),  # Right side position
-            Inches(4.0), Inches(3.0),  # Adjusted size
+            Inches(5.5), Inches(1.2),
+            Inches(4), Inches(3),
             chart_data
         ).chart
         chart.has_title = True
@@ -235,7 +234,7 @@ def generate_chart(slide, csv_file, chart_type="bar"):
     except Exception as e:
         app.logger.exception("Error generating chart")
 
-def create_presentation(topic, text_file, csv_file, theme="corporate", language="en", include_images=True, summarize=False, chart_type="bar"):
+def create_presentation(topic, text_file, csv_file, theme="corporate", language="en", include_images=True, summarize=False, chart_type="bar", export_format="pptx"):
     try:
         prs = Presentation()
         selected_theme = THEMES.get(theme, THEMES["corporate"])
@@ -269,8 +268,8 @@ def create_presentation(topic, text_file, csv_file, theme="corporate", language=
 
         # Content slides
         for i, title in enumerate(slide_titles[1:], start=1):
-            # Use layout 1 (title + content) for Slide 2 with image
-            slide_layout = prs.slide_layouts[1] if (i == 1 and include_images) else prs.slide_layouts[5]
+            has_image = (i == 1 and include_images)
+            slide_layout = prs.slide_layouts[1] if has_image else prs.slide_layouts[5]
             slide = prs.slides.add_slide(slide_layout)
             apply_gradient(slide, selected_theme["gradient_start"], selected_theme["gradient_end"])
 
@@ -283,39 +282,51 @@ def create_presentation(topic, text_file, csv_file, theme="corporate", language=
             if selected_theme["shadow"]:
                 add_text_shadow(tf)
 
-            has_image = (i == 1 and include_images)
             has_chart = (csv_file and i == 2)
-            content_width = Inches(5.0) if (has_image or has_chart) else Inches(9.0)  # Adjusted width
             content_text = generate_slide_content(title, has_image=has_image, summarize=summarize, language=language)
 
-            if slide_layout == prs.slide_layouts[1] and has_image:
-                # Use the content placeholder for text
-                content_placeholder = slide.placeholders[1]
-                content_placeholder.text = content_text
-                tf = content_placeholder.text_frame
-            else:
-                # Manually add textbox with adjusted width
-                textbox = slide.shapes.add_textbox(Inches(0.5), Inches(1.5), content_width, Inches(5.0))
+            if has_image:
+                for shape in slide.placeholders:
+                    if shape.placeholder_format.idx != 0:
+                        slide.shapes._spTree.remove(shape._element)
+                
+                left_text = Inches(0.5)
+                top_text = Inches(1.5)
+                width_text = Inches(5.0)
+                height_text = Inches(5.0)
+                textbox = slide.shapes.add_textbox(left_text, top_text, width_text, height_text)
                 tf = textbox.text_frame
                 tf.text = content_text
+                tf.word_wrap = True
+                for paragraph in tf.paragraphs:
+                    paragraph.font.size = CONTENT_FONT_SIZE
+                    paragraph.font.name = selected_theme["font_name"]
+                    paragraph.font.color.rgb = selected_theme["text_color"]
+                    paragraph.space_after = Pt(12)
+                    if selected_theme["shadow"]:
+                        add_text_shadow(tf)
 
-            tf.word_wrap = True
-            for paragraph in tf.paragraphs:
-                paragraph.font.size = CONTENT_FONT_SIZE
-                paragraph.font.name = selected_theme["font_name"]
-                paragraph.font.color.rgb = selected_theme["text_color"]
-                paragraph.space_after = Pt(12)
-                if selected_theme["shadow"]:
-                    add_text_shadow(tf)
-
-            if has_image:
                 image_stream = generate_image(f"{title} related to {content_text}", language)
                 if image_stream:
-                    # Add image to the right side
-                    slide.shapes.add_picture(image_stream, Inches(5.5), Inches(1.5), width=Inches(4.0))
+                    left_img = Inches(6.0)
+                    top_img = Inches(1.5)
+                    width_img = Inches(4.0)
+                    slide.shapes.add_picture(image_stream, left_img, top_img, width=width_img)
                     app.logger.debug(f"Image added to slide: {title}")
                 else:
                     app.logger.error(f"No image returned for slide: {title}")
+            else:
+                textbox = slide.shapes.add_textbox(Inches(0.5), Inches(1.5), Inches(9.0), Inches(5.0))
+                tf = textbox.text_frame
+                tf.text = content_text
+                tf.word_wrap = True
+                for paragraph in tf.paragraphs:
+                    paragraph.font.size = CONTENT_FONT_SIZE
+                    paragraph.font.name = selected_theme["font_name"]
+                    paragraph.font.color.rgb = selected_theme["text_color"]
+                    paragraph.space_after = Pt(12)
+                    if selected_theme["shadow"]:
+                        add_text_shadow(tf)
 
             if has_chart:
                 csv_file.seek(0)
@@ -323,10 +334,12 @@ def create_presentation(topic, text_file, csv_file, theme="corporate", language=
 
         output_dir = "generated_ppt"
         os.makedirs(output_dir, exist_ok=True)
-        output_filepath = os.path.join(output_dir, f"{topic or 'presentation'}_presentation.pptx")
-        prs.save(output_filepath)
-        app.logger.debug(f"Saved to {output_filepath}")
-        return output_filepath
+        pptx_filepath = os.path.join(output_dir, f"{topic or 'presentation'}_presentation.pptx")
+        prs.save(pptx_filepath)
+        app.logger.debug(f"Saved to {pptx_filepath}")
+        
+        # Always return the .pptx file path
+        return pptx_filepath
     except Exception as e:
         app.logger.exception("Error in create_presentation")
         raise e
@@ -356,11 +369,9 @@ def generate():
             language=language,
             include_images=include_images,
             summarize=summarize,
-            chart_type=chart_type
+            chart_type=chart_type,
+            export_format=export_format
         )
-        if export_format == 'pdf':
-            return jsonify({"error": "PDF export not implemented"}), 501
-
         download_name = f"{topic or 'presentation'}.pptx"
         return send_file(pptx_path, as_attachment=True, download_name=download_name)
     except Exception as e:

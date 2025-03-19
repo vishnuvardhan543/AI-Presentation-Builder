@@ -1,5 +1,4 @@
 import { useForm } from "react-hook-form";
-import { insertPresentationSchema } from "../shared/schema";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage, FormDescription } from "./ui/Form";
 import { Input } from "./ui/Input";
 import { Button } from "./ui/Button";
@@ -53,7 +52,7 @@ export function PresentationForm() {
 
   async function onSubmit(data) {
     setIsSubmitting(true);
-    setDownloadUrl(null); // Reset previous download URL
+    setDownloadUrl(null);
     const formData = new FormData();
 
     Object.entries(data).forEach(([key, value]) => {
@@ -81,11 +80,21 @@ export function PresentationForm() {
 
       const blob = await response.blob();
       const url = window.URL.createObjectURL(blob);
-      setDownloadUrl(url); // Store the URL for later download
+      setDownloadUrl(url);
+
+      const exportFormat = data.exportFormat;
+      let message;
+      if (exportFormat === "pptx") {
+        message = "Your PowerPoint presentation is ready. Click the download link below.";
+      } else if (exportFormat === "pdf") {
+        message = "Your PDF presentation is ready. Click the download link below.";
+      } else if (exportFormat === "google_slides") {
+        message = "Download the .pptx file and upload it to Google Slides to continue.";
+      }
 
       toast({
         title: "Success!",
-        description: "Your presentation has been generated. Click the download link below.",
+        description: message,
       });
     } catch (error) {
       toast({
@@ -102,9 +111,10 @@ export function PresentationForm() {
     if (downloadUrl) {
       const a = document.createElement("a");
       a.href = downloadUrl;
-      const filename = form.getValues("topic").trim() 
-        ? `${form.getValues("topic")}.pptx` 
-        : "presentation.pptx";
+      const exportFormat = form.getValues("exportFormat");
+      const topic = form.getValues("topic").trim();
+      let filename = topic ? `${topic}` : "presentation";
+      filename += exportFormat === "pdf" ? ".pdf" : ".pptx";
       a.download = filename;
       document.body.appendChild(a);
       a.click();
@@ -360,6 +370,29 @@ export function PresentationForm() {
               {isCollaborating ? "Stop Sharing" : "Start Sharing"}
             </Button>
           </div>
+
+          <FormField
+            control={form.control}
+            name="exportFormat"
+            render={({ field }) => (
+              <FormItem className="col-span-2 md:col-span-1">
+                <FormLabel className="font-medium">Export Format</FormLabel>
+                <Select onValueChange={field.onChange} defaultValue={field.value}>
+                  <FormControl>
+                    <SelectTrigger className="focus:ring-2 focus:ring-primary/20">
+                      <SelectValue placeholder="Select export format" />
+                    </SelectTrigger>
+                  </FormControl>
+                  <SelectContent className="w-full max-w-[200px] bg-white z-50">
+                    <SelectItem value="pptx">PowerPoint (.pptx)</SelectItem>
+                    <SelectItem value="pdf">PDF</SelectItem>
+                    <SelectItem value="google_slides">Google Slides</SelectItem>
+                  </SelectContent>
+                </Select>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
         </div>
 
         <Button 
