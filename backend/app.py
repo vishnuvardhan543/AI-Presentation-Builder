@@ -13,6 +13,10 @@ import requests
 from io import BytesIO
 import base64
 import pandas as pd
+from dotenv import load_dotenv
+
+# Load environment variables
+load_dotenv()
 
 # Configure logging
 logging.basicConfig(level=logging.DEBUG)
@@ -22,11 +26,11 @@ app = Flask(__name__)
 CORS(app)
 
 # Configure Gemini API
-genai_api_key = os.environ.get('AIzaSyBeC7C-2VQK0Q7rAebsfbbTqtPZE9uGBGc')
+genai_api_key = os.environ.get('GENAI_API_KEY')
 if not genai_api_key:
     app.logger.error("GENAI_API_KEY is not set in the environment!")
-else:
-    genai.configure(api_key=genai_api_key)
+    raise ValueError("GENAI_API_KEY is required")
+genai.configure(api_key=genai_api_key)
 
 # Theme options
 THEMES = {
@@ -72,8 +76,10 @@ def process_bullet_points(text):
         for line in lines:
             line = line.strip()
             if line:
-                line = re.sub(r'^[\d\.\-\*\s]+', '', line)
-                cleaned_lines.append('- ' + line)
+                # Remove Markdown asterisks (*) and other unwanted characters
+                line = re.sub(r'[\*\[\]]', '', line)  # Remove *, **, [, ]
+                line = re.sub(r'^[\d\.\-\s]+', '', line)  # Remove leading numbers, dots, dashes
+                cleaned_lines.append('- ' + line.strip())
         return '\n'.join(cleaned_lines)
     except Exception as e:
         app.logger.exception("Error processing bullet points")
@@ -83,12 +89,8 @@ def generate_slide_titles(content, language="en"):
     try:
         prompt = f"Generate exactly 3 concise slide titles for a presentation on '{content}' in {language}, no preamble or numbering."
         app.logger.debug(f"Generating titles with prompt: {prompt}")
-        response = genai.generate_text(
-            model="gemini-2.0-flash",  # Verify this model name with Gemini API docs
-            prompt=prompt,
-            max_output_tokens=100,
-            temperature=0.7
-        )
+        model = genai.GenerativeModel("gemini-1.5-flash")
+        response = model.generate_content(prompt)
         titles_text = response.text.strip()
         app.logger.debug(f"Raw titles response: {titles_text}")
         titles = process_titles(titles_text)
@@ -96,7 +98,7 @@ def generate_slide_titles(content, language="en"):
             titles.append(f"{content} Overview {len(titles) + 1}")
         return titles[:3]
     except Exception as e:
-        app.logger.exception("Error generating slide titles")
+        app.logger.exception(f"Failed to generate titles: {str(e)}")
         return [f"{content} Slide {i+1}" for i in range(3)]
 
 def generate_slide_content(slide_title, has_image=True, summarize=False, language="en"):
@@ -111,25 +113,21 @@ def generate_slide_content(slide_title, has_image=True, summarize=False, languag
             prompt = f"Generate six concise bullet points (max 25 words each) for '{slide_title}' in {language}. Use '-' as bullet marker, no numbering."
             max_tokens = 300
         app.logger.debug(f"Generating content with prompt: {prompt}")
-        response = genai.generate_text(
-            model="gemini-2.0-flash",  # Verify this model name
-            prompt=prompt,
-            max_output_tokens=max_tokens,
-            temperature=0.7
-        )
+        model = genai.GenerativeModel("gemini-1.5-flash")
+        response = model.generate_content(prompt)
         content = response.text.strip()
         app.logger.debug(f"Raw content response: {content}")
         if not has_image and not summarize:
             content = process_bullet_points(content)
         return content
     except Exception as e:
-        app.logger.exception(f"Content generation failed for '{slide_title}': {str(e)}")
-        return "Failed to generate content. Check API key or model name."
+        app.logger.exception(f"Failed to generate content for '{slide_title}': {str(e)}")
+        return f"Content generation failed: {str(e)}"
 
 def generate_image(prompt, language="en"):
-    stability_api_key = os.environ.get('sk-rU0NqF5CAhM2fBY1KsTrA3J2oIZF7dNvP13tdZt0anhl6AoR')
+    stability_api_key = os.environ.get('STABILITY_API_KEY')
     if not stability_api_key:
-        app.logger.error("STABILITY_API_KEY is not set!")
+        app.logger.error("STABILITY_API_KEY is not set in the environment!")
         return None
     api_url = "https://api.stability.ai/v1/generation/stable-diffusion-xl-1024-v1-0/text-to-image"
     headers = {"Authorization": f"Bearer {stability_api_key}", "Content-Type": "application/json"}
@@ -144,14 +142,16 @@ def generate_image(prompt, language="en"):
     try:
         app.logger.debug(f"Requesting image with data: {data}")
         response = requests.post(api_url, headers=headers, json=data)
-        if response.status_code == 200:
-            image_data = response.json()["artifacts"][0]["base64"]
-            return BytesIO(base64.b64decode(image_data))
-        else:
-            app.logger.error(f"Image generation failed: {response.status_code} - {response.text}")
-            return None
+        response.raise_for_status()  # Raise an exception for bad status codes
+        image_data = response.json()["artifacts"][0]["base64"]
+        image_stream = BytesIO(base64.b64decode(image_data))
+        app.logger.debug(f"Image generated successfully for prompt: {prompt}")
+        return image_stream
+    except requests.exceptions.RequestException as e:
+        app.logger.error(f"Image generation failed: {e} - {response.text if 'response' in locals() else 'No response'}")
+        return None
     except Exception as e:
-        app.logger.exception("Error generating image")
+        app.logger.exception(f"Error generating image: {str(e)}")
         return None
 
 def generate_chart(slide, csv_file, chart_type="bar"):
@@ -227,8 +227,9 @@ def create_presentation(topic, text_file, csv_file, theme="professional", langua
                 image_stream = generate_image(f"{title} related to {content_text}", language)
                 if image_stream:
                     slide.shapes.add_picture(image_stream, Inches(5.5), Inches(1.2), width=Inches(4))
+                    app.logger.debug(f"Image added to slide: {title}")
                 else:
-                    app.logger.error("No image returned for slide: " + title)
+                    app.logger.error(f"No image returned for slide: {title}")
 
             if csv_file and i == 1:
                 csv_file.seek(0)
@@ -274,7 +275,6 @@ def generate():
         if export_format == 'pdf':
             return jsonify({"error": "PDF export not implemented"}), 501
 
-        # Set explicit download name with .pptx extension
         download_name = f"{topic or 'presentation'}.pptx"
         return send_file(pptx_path, as_attachment=True, download_name=download_name)
     except Exception as e:
