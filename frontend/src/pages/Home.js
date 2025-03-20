@@ -20,7 +20,7 @@ export default function Home() {
       chartType: "bar"
     }
   });
-  
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-slate-100 p-6">
       <div className="max-w-6xl mx-auto space-y-8">
@@ -28,15 +28,16 @@ export default function Home() {
           <div className="inline-flex p-3 bg-primary/10 rounded-full mb-2 animate-bounce">
             <PresentationIcon className="h-6 w-6 text-primary" />
           </div>
-          
-          <h1 className="text-5xl font-bold tracking-tight bg-gradient-to-r from-primary to-purple-600 text-transparent bg-clip-text">
+
+          <h1 className="text-5xl font-bold tracking-tight bg-gradient-to-r from-primary to-purple-600 text-black bg-clip-text">
             AI Presentation Builder
           </h1>
-          
+
+
           <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
             Create stunning presentations in seconds with AI-powered content generation
           </p>
-          
+
           <div className="flex flex-wrap gap-4 justify-center text-sm text-muted-foreground">
             <span className="flex items-center gap-1 bg-white/80 backdrop-blur-sm px-3 py-1.5 rounded-full shadow-sm border border-primary/10 transition-all hover:shadow-md hover:scale-105">
               <StarIcon className="w-3 h-3 text-amber-500" /> AI Content
@@ -66,7 +67,7 @@ export default function Home() {
                 Live Preview
               </TabsTrigger>
             </TabsList>
-            
+
             <TabsContent value="create" className="mt-6">
               <Card className="border shadow-md overflow-hidden bg-white/90 backdrop-blur-sm">
                 <CardHeader className="bg-gray-50/80 border-b">
@@ -80,7 +81,7 @@ export default function Home() {
                 </CardContent>
               </Card>
             </TabsContent>
-            
+
             <TabsContent value="preview" className="mt-6">
               <Card className="border shadow-md overflow-hidden bg-white/90 backdrop-blur-sm">
                 <CardHeader className="bg-gray-50/80 border-b">
@@ -96,7 +97,7 @@ export default function Home() {
             </TabsContent>
           </Tabs>
         </FormProvider>
-        
+
         <div className="text-center text-sm text-muted-foreground pt-8">
           <p>Create professional presentations in minutes, not hours</p>
         </div>
