@@ -332,7 +332,10 @@ def generate_image(prompt, language="en"):
 
 def generate_chart(slide, csv_file, chart_type="bar", language="en"):
     try:
+        # Create a temporary copy of the file to work with
+        csv_file.seek(0)
         df = pd.read_csv(csv_file)
+        
         chart_data = CategoryChartData()
         chart_data.categories = df.iloc[:, 0].tolist()
         chart_data.add_series('Data', df.iloc[:, 1].tolist())
@@ -348,7 +351,7 @@ def generate_chart(slide, csv_file, chart_type="bar", language="en"):
         chart.chart_title.text_frame.paragraphs[0].font.size = Pt(14)
         chart.chart_title.text_frame.paragraphs[0].font.name = "Mangal" if language == "hi" else "Gautami" if language == "te" else "Arial"
     except Exception as e:
-        app.logger.exception("Error generating chart")
+        app.logger.exception(f"Error generating chart: {str(e)}")
 
 def add_design_elements(slide, theme, variant_info):
     try:
@@ -636,6 +639,50 @@ def create_presentation(topic, text_file=None, csv_file=None, theme="corporate",
                     slide.shapes.add_picture(image_stream, Inches(7.0), Inches(1.5), width=Inches(5.5))
                 else:
                     textbox.width = Inches(11.0)
+        
+        # Add chart slide if CSV file is provided
+        if csv_file:
+            chart_slide = prs.slides.add_slide(prs.slide_layouts[6])
+            apply_gradient(chart_slide, selected_theme["gradient_start"], selected_theme["gradient_end"])
+            
+            add_design_elements(chart_slide, selected_theme, variant_info)
+            apply_variant_styling(chart_slide, selected_theme, variant_info)
+            
+            title_shape = chart_slide.shapes.add_textbox(
+                Inches(0.5), Inches(0.5), Inches(11.0), Inches(0.8))
+            title_tf = title_shape.text_frame
+            chart_title = "Data Analysis" if language == "en" else "डेटा विश्लेषण" if language == "hi" else "డేటా విశ్లేషణ"
+            title_tf.text = chart_title
+            title_tf.paragraphs[0].font.size = TITLE_FONT_SIZE
+            title_tf.paragraphs[0].font.name = "Mangal" if language == "hi" else "Gautami" if language == "te" else variant_info["font_name"]
+            title_tf.paragraphs[0].font.color.rgb = selected_theme["title_color"]
+            title_tf.paragraphs[0].font.bold = True
+            
+            # Left side text explanation
+            textbox = chart_slide.shapes.add_textbox(
+                Inches(0.7), Inches(1.5), Inches(4.0), Inches(5.0))
+            tf = textbox.text_frame
+            tf.word_wrap = True
+            
+            chart_explanation = "This chart visualizes the key data points related to our topic. The data shows trends and patterns that support our analysis."
+            if language == "hi":
+                chart_explanation = "यह चार्ट हमारे विषय से संबंधित प्रमुख डेटा बिंदुओं को दर्शाता है। डेटा ऐसे रुझान और पैटर्न दिखाता है जो हमारे विश्लेषण का समर्थन करते हैं।"
+            elif language == "te":
+                chart_explanation = "ఈ చార్ట్ మన అంశానికి సంబంధించిన కీలక డేటా పాయింట్లను చూపిస్తుంది. డేటా మన విశ్లేషణకు మద్దతు ఇచ్చే ధోరణులు మరియు నమూనాలను చూపిస్తుంది."
+            
+            tf.text = chart_explanation
+            
+            for paragraph in tf.paragraphs:
+                paragraph.font.size = CONTENT_FONT_SIZE
+                paragraph.font.name = "Mangal" if language == "hi" else "Gautami" if language == "te" else variant_info["font_name"]
+                paragraph.font.color.rgb = selected_theme["text_color"]
+                paragraph.space_after = Pt(12)
+            
+            if selected_theme["shadow"]:
+                add_text_shadow(tf)
+            
+            # Generate chart on the right side
+            generate_chart(chart_slide, csv_file, chart_type, language)
 
         for slide in prs.slides:
             footer = slide.shapes.add_textbox(Inches(0.5), Inches(7.0), Inches(12.0), Inches(0.3))
@@ -646,8 +693,7 @@ def create_presentation(topic, text_file=None, csv_file=None, theme="corporate",
             tf.paragraphs[0].font.italic = True
             tf.paragraphs[0].alignment = PP_ALIGN.RIGHT
 
-        output_dir = "generated_ppt"
-        os.makedirs(output_dir, exist_ok=True)
+        output_dir = tempfile.mkdtemp()
         pptx_filepath = os.path.join(output_dir, f"{topic or 'presentation'}_presentation.pptx")
         prs.save(pptx_filepath)
         
@@ -685,6 +731,10 @@ def generate():
     chart_type = request.form.get('chartType', 'bar')
     export_format = request.form.get('exportFormat', 'pptx')
     slide_count = request.form.get('slideCount', '5')
+    
+    # Validate chart_type
+    if chart_type not in CHART_TYPES:
+        chart_type = 'bar'
     
     try:
         slide_count = int(slide_count)

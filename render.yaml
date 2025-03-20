@@ -1,0 +1,11 @@
+     services:
+       - type: web
+         name: presentation-generator-api
+         runtime: python
+         buildCommand: pip install -r requirements.txt
+         startCommand: gunicorn backend.app:app
+         envVars:
+           - key: GENAI_API_KEY
+             sync: false
+           - key: STABILITY_API_KEY
+             sync: false
