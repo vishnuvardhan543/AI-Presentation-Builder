@@ -290,16 +290,19 @@ def generate_image(prompt, language="en"):
         api_url = "https://api.stability.ai/v1/generation/stable-diffusion-xl-1024-v1-0/text-to-image"
         headers = {"Authorization": f"Bearer {stability_api_key}", "Content-Type": "application/json"}
         
-        style_prompt = "professional high-quality illustration"
-        if language == "hi":
-            style_prompt += ", styled for Hindi audience"
-        elif language == "te":
-            style_prompt += ", styled for Telugu audience"
+        # Create a generic prompt that doesn't include the potentially non-English text
+        if language != "en":
+            # For non-English, use a generic prompt based on the slide context
+            # Extract the topic by taking the first word or use "presentation" as fallback
+            topic_words = prompt.split()
+            topic = topic_words[0] if topic_words else "presentation"
+            generic_prompt = f"Professional illustration for {topic} presentation"
         else:
-            style_prompt += f", styled for {language} audience"
-        
+            # For English, we can use the full prompt
+            generic_prompt = prompt
+            
         payload = {
-            "text_prompts": [{"text": f"{prompt}, {style_prompt}"}],
+            "text_prompts": [{"text": f"{generic_prompt}, professional high-quality illustration"}],
             "cfg_scale": 7,
             "height": 1024,
             "width": 1024,
@@ -631,6 +634,8 @@ def create_presentation(topic, text_file=None, csv_file=None, theme="corporate",
                 image_stream = generate_image(f"{title} related to {content_text}", language)
                 if image_stream:
                     slide.shapes.add_picture(image_stream, Inches(7.0), Inches(1.5), width=Inches(5.5))
+                else:
+                    textbox.width = Inches(11.0)
 
         for slide in prs.slides:
             footer = slide.shapes.add_textbox(Inches(0.5), Inches(7.0), Inches(12.0), Inches(0.3))
