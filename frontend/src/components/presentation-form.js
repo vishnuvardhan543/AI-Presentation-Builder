@@ -47,6 +47,7 @@ export function PresentationForm() {
       summarize: false,
       chartType: undefined,
       exportFormat: "pptx",
+      slideCount: 5,
     },
   });
 
@@ -341,35 +342,33 @@ export function PresentationForm() {
         </div>
 
         <div className="grid gap-4 md:grid-cols-2">
-          <div className="flex items-center justify-between space-y-0 rounded-lg border p-4 shadow-sm col-span-2 md:col-span-1">
-            <div>
-              <FormLabel className="font-medium">Real-time Collaboration</FormLabel>
-              <FormDescription>Work together in real-time</FormDescription>
-            </div>
-            <Button
-              type="button"
-              variant={isCollaborating ? "destructive" : "outline"}
-              className={isCollaborating ? "bg-red-500 hover:bg-red-600" : "border-primary text-primary hover:bg-primary/5"}
-              onClick={() => {
-                if (isCollaborating) {
-                  stopCollaboration();
-                  toast({
-                    title: "Collaboration ended",
-                    description: "You've left the collaboration session.",
-                  });
-                } else {
-                  startCollaboration();
-                  toast({
-                    title: "Collaboration started",
-                    description: "Share the URL with others to collaborate.",
-                  });
-                }
-              }}
-            >
-              <Users className="w-4 h-4 mr-2" />
-              {isCollaborating ? "Stop Sharing" : "Start Sharing"}
-            </Button>
-          </div>
+          <FormField
+            control={form.control}
+            name="slideCount"
+            render={({ field }) => (
+              <FormItem className="col-span-2 md:col-span-1">
+                <FormLabel className="font-medium">Number of Slides</FormLabel>
+                <Select onValueChange={(value) => field.onChange(parseInt(value))} defaultValue={field.value.toString()}>
+                  <FormControl>
+                    <SelectTrigger className="focus:ring-2 focus:ring-primary/20">
+                      <SelectValue placeholder="Select number of slides" />
+                    </SelectTrigger>
+                  </FormControl>
+                  <SelectContent className="w-full max-w-[200px] bg-white z-50">
+                    {[3, 4, 5, 6, 7, 8, 9, 10].map((num) => (
+                      <SelectItem key={num} value={num.toString()}>
+                        {num} slides
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <FormDescription>
+                  Select how many slides to generate (max 10)
+                </FormDescription>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
 
           <FormField
             control={form.control}

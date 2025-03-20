@@ -241,7 +241,7 @@ def generate_chart(slide, csv_file, chart_type="bar", language="en"):
     except Exception as e:
         app.logger.exception("Error generating chart")
 
-def create_presentation(topic, text_file, csv_file, theme="corporate", language="en", include_images=True, summarize=False, chart_type="bar", export_format="pptx"):
+def create_presentation(topic, text_file, csv_file, theme="corporate", language="en", include_images=True, summarize=False, chart_type="bar", export_format="pptx", slide_count=5):
     try:
         prs = Presentation()
         selected_theme = THEMES.get(theme, THEMES["corporate"])
@@ -251,8 +251,31 @@ def create_presentation(topic, text_file, csv_file, theme="corporate", language=
             content = text_file.read().decode('utf-8')
         app.logger.debug(f"Content: {content[:100]}...")
 
-        slide_titles = generate_slide_titles(content, language)
+        # Get more slide titles based on requested slide count (add 1 for title slide)
+        desired_content_slides = min(int(slide_count), 10) - 1  # -1 for title slide
         
+        # Generate more slide titles if needed
+        if desired_content_slides > 2:  # We already generate 3 titles (1 title slide + 2 content slides)
+            slide_titles = generate_slide_titles(content, language)
+            # Generate additional titles if needed
+            additional_titles_needed = desired_content_slides - 2
+            if additional_titles_needed > 0:
+                # Create a prompt to generate more titles
+                prompt = f"Generate exactly {additional_titles_needed} more concise slide titles for a presentation on '{content}' in {language.capitalize()}, no preamble or numbering."
+                model = genai.GenerativeModel("gemini-1.5-flash")
+                response = model.generate_content(prompt)
+                additional_titles = process_titles(response.text.strip())
+                slide_titles.extend(additional_titles)
+        else:
+            slide_titles = generate_slide_titles(content, language)
+        
+        # Ensure we have enough titles (fallback)
+        while len(slide_titles) < desired_content_slides + 1:
+            slide_titles.append(f"{content} Overview {len(slide_titles) + 1}")
+            
+        # Limit to requested number of slides
+        slide_titles = slide_titles[:desired_content_slides + 1]  # +1 for title slide
+
         # Title slide with enhanced design
         title_slide = prs.slides.add_slide(prs.slide_layouts[0])
         apply_gradient(title_slide, selected_theme["gradient_start"], selected_theme["gradient_end"])
@@ -275,7 +298,10 @@ def create_presentation(topic, text_file, csv_file, theme="corporate", language=
 
         # Content slides
         for i, title in enumerate(slide_titles[1:], start=1):
-            has_image = (i == 1 and include_images)
+            # Determine if this slide should have an image
+            # Alternate image slides if we have multiple
+            has_image = (include_images and i % 2 == 1)
+            
             slide_layout = prs.slide_layouts[1] if has_image else prs.slide_layouts[5]
             slide = prs.slides.add_slide(slide_layout)
             apply_gradient(slide, selected_theme["gradient_start"], selected_theme["gradient_end"])
@@ -362,12 +388,23 @@ def generate():
     summarize = request.form.get('summarize', 'false') == 'true'
     chart_type = request.form.get('chartType', 'bar')
     export_format = request.form.get('exportFormat', 'pptx')
+    slide_count = request.form.get('slideCount', '5')  # Default to 5 slides
+    
+    # Validate slide count
+    try:
+        slide_count = int(slide_count)
+        if slide_count < 3:
+            slide_count = 3  # Minimum 3 slides
+        elif slide_count > 10:
+            slide_count = 10  # Maximum 10 slides
+    except ValueError:
+        slide_count = 5  # Default if invalid
 
     if not topic and not text_file:
         return jsonify({"error": "Topic or text file required"}), 400
 
     try:
-        app.logger.debug("Generating presentation")
+        app.logger.debug(f"Generating presentation with {slide_count} slides")
         pptx_path = create_presentation(
             topic=topic,
             text_file=text_file,
@@ -377,7 +414,8 @@ def generate():
             include_images=include_images,
             summarize=summarize,
             chart_type=chart_type,
-            export_format=export_format
+            export_format=export_format,
+            slide_count=slide_count  # Pass the slide count to the function
         )
         download_name = f"{topic or 'presentation'}.pptx"
         return send_file(pptx_path, as_attachment=True, download_name=download_name)
