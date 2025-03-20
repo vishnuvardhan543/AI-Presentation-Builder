@@ -12,17 +12,16 @@ import { usePresentation } from "../contexts/PresentationContext";
 // Custom Toggle Switch component
 const CustomToggle = ({ checked, onCheckedChange }) => {
   return (
-    <div 
+    <div
       className="relative inline-block w-[60px] h-[30px] cursor-pointer"
       onClick={() => onCheckedChange(!checked)}
     >
-      <div 
+      <div
         className="absolute inset-0 rounded-full bg-black transition-all duration-300 ease-in-out"
       />
-      <div 
-        className={`absolute w-[25px] h-[25px] bg-white rounded-full top-[2.5px] transition-all duration-300 ease-in-out ${
-          checked ? 'left-[32.5px]' : 'left-[2.5px]'
-        }`}
+      <div
+        className={`absolute w-[25px] h-[25px] bg-white rounded-full top-[2.5px] transition-all duration-300 ease-in-out ${checked ? 'left-[32.5px]' : 'left-[2.5px]'
+          }`}
       />
     </div>
   );
@@ -101,7 +100,7 @@ export function PresentationForm({ formContext }) {
 
       // Check if this is for Google Slides
       const isGoogleSlides = response.headers.get('X-Export-Format') === 'google_slides';
-      
+
       let message;
       if (isGoogleSlides) {
         message = "Your presentation has been generated. To open in Google Slides, go to drive.google.com, click New → File upload, then import the downloaded file.";
@@ -132,13 +131,13 @@ export function PresentationForm({ formContext }) {
       a.href = downloadUrl;
       const topic = form.getValues("topic").trim();
       const exportFormat = form.getValues("exportFormat");
-      
+
       // Set file extension based on export format
       let extension = 'pptx';
       if (exportFormat === 'pdf') {
         extension = 'pdf';
       }
-      
+
       const filename = topic ? `${topic}.${extension}` : `presentation.${extension}`;
       a.download = filename;
       document.body.appendChild(a);
@@ -179,10 +178,10 @@ export function PresentationForm({ formContext }) {
             <FormItem>
               <FormLabel className="font-medium">Presentation Topic</FormLabel>
               <FormControl>
-                <Input 
-                  placeholder="Enter your presentation topic or title" 
-                  className="focus:ring-2 focus:ring-primary/20" 
-                  {...field} 
+                <Input
+                  placeholder="Enter your presentation topic or title"
+                  className="focus:ring-2 focus:ring-primary/20"
+                  {...field}
                 />
               </FormControl>
               <FormDescription>
@@ -435,9 +434,9 @@ export function PresentationForm({ formContext }) {
           />
         </div>
 
-        <Button 
-          type="submit" 
-          className="w-full" 
+        <Button
+          type="submit"
+          className="w-full"
           disabled={isSubmitting}
         >
           {isSubmitting ? (
