@@ -1,4 +1,4 @@
-import { useForm } from "react-hook-form";
+import { useForm, FormProvider } from "react-hook-form";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage, FormDescription } from "./ui/Form";
 import { Input } from "./ui/Input";
 import { Button } from "./ui/Button";
@@ -28,7 +28,7 @@ const CustomToggle = ({ checked, onCheckedChange }) => {
   );
 };
 
-export function PresentationForm() {
+export function PresentationForm({ formContext }) {
   const { toast } = useToast();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [downloadUrl, setDownloadUrl] = useState(null);
@@ -37,7 +37,8 @@ export function PresentationForm() {
   const [csvUploaded, setCsvUploaded] = useState(false);
   const { startCollaboration, stopCollaboration, isCollaborating } = usePresentation();
 
-  const form = useForm({
+  // Always call useForm to follow React hooks rules
+  const internalForm = useForm({
     defaultValues: {
       topic: "",
       theme: "corporate",
@@ -50,6 +51,9 @@ export function PresentationForm() {
       slideCount: 5,
     },
   });
+
+  // Use the provided formContext if available, otherwise use internal form
+  const form = formContext || internalForm;
 
   async function onSubmit(data) {
     setIsSubmitting(true);

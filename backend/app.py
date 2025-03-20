@@ -362,7 +362,7 @@ def generate_image(prompt, language="en"):
         else:
             app.logger.warning(f"No image data in response for prompt: {prompt}")
             return None
-    
+            
     except Exception as e:
         app.logger.exception(f"Error generating image: {str(e)}")
         return None
@@ -701,7 +701,7 @@ def apply_bullet_styling(paragraph, bullet_style, theme_color):
         paragraph.bullet = True
 
 # Update the create_presentation function to use these enhancements
-def create_presentation(topic, text_file, csv_file, theme="corporate", variant="professional", language="en", include_images=True, summarize=False, chart_type="bar", export_format="pptx", slide_count=5):
+def create_presentation(topic, text_file=None, csv_file=None, theme="corporate", variant="professional", language="en", include_images=True, summarize=False, chart_type="bar", export_format="pptx", slide_count=5):
     try:
         prs = Presentation()
         selected_theme = THEMES.get(theme, THEMES["corporate"])
@@ -777,8 +777,8 @@ def create_presentation(topic, text_file, csv_file, theme="corporate", variant="
         subtitle_tf.paragraphs[0].alignment = PP_ALIGN.CENTER
         
         # Content slides with improved layout and design
-        for i, title in enumerate(slide_titles[1:], start=1):
-            # Use blank layout to avoid placeholders
+        for i, title in enumerate(slide_titles):
+            # Create slide with consistent layout
             slide = prs.slides.add_slide(prs.slide_layouts[6])  # Using blank layout
             apply_gradient(slide, selected_theme["gradient_start"], selected_theme["gradient_end"])
             
@@ -800,15 +800,12 @@ def create_presentation(topic, text_file, csv_file, theme="corporate", variant="
             title_tf.paragraphs[0].font.color.rgb = selected_theme["title_color"]
             title_tf.paragraphs[0].font.bold = True
             
-            if selected_theme["shadow"]:
-                add_text_shadow(title_tf)
-            
             # Generate content for the slide
             content_text = generate_slide_content(title, include_images, language)
             app.logger.debug(f"Generated content for slide {i+1}: {title}")
             
             # Position text on left side if there's an image
-            if include_images:
+            if include_images and (i % 2 == 0):  # Every other slide gets an image
                 # Narrower text box on the left for slides with images
                 textbox = slide.shapes.add_textbox(
                     Inches(0.5),       # Left position
@@ -817,7 +814,7 @@ def create_presentation(topic, text_file, csv_file, theme="corporate", variant="
                     Inches(5.0)        # Height
                 )
             else:
-                # Wider text box for slides without images
+                # Full-width text box for text-only slides
                 textbox = slide.shapes.add_textbox(
                     Inches(0.7),       # Left position
                     Inches(1.5),       # Top position
@@ -828,10 +825,12 @@ def create_presentation(topic, text_file, csv_file, theme="corporate", variant="
             # Configure text frame
             tf = textbox.text_frame
             tf.word_wrap = True
+            tf.text = content_text
             
             # Format content based on type (paragraphs or bullet points)
             if content_text.startswith('-'):
                 # For bullet points
+                tf.text = ""  # Clear the text frame
                 lines = content_text.split('\n')
                 for line_idx, line in enumerate(lines):
                     p = tf.add_paragraph()
@@ -846,7 +845,6 @@ def create_presentation(topic, text_file, csv_file, theme="corporate", variant="
                     apply_bullet_styling(p, bullet_style, selected_theme["accent_color"])
             else:
                 # For regular paragraphs
-                tf.text = content_text
                 for paragraph in tf.paragraphs:
                     paragraph.font.size = CONTENT_FONT_SIZE
                     paragraph.font.name = "Mangal" if language == "hi" else "Gautami" if language == "te" else variant_info["font_name"]
@@ -856,23 +854,15 @@ def create_presentation(topic, text_file, csv_file, theme="corporate", variant="
             if selected_theme["shadow"]:
                 add_text_shadow(tf)
             
-            # Add image on the right side if needed
-            if include_images:
-                # Determine if this slide should have an image
-                # Start from second slide (i=1, which is slide #2) and include on even-numbered slides (2, 4, 6...)
-                should_have_image = include_images and (i % 2 == 0)
-                
-                if should_have_image:
-                    # Generate and add image
-                    image_stream = generate_image(f"{title} related to {content_text}", language)
-                    
-                    if image_stream:
-                        # Image on the right side
-                        left_img = Inches(6.75)      # Position to the right
-                        top_img = Inches(1.5)        # Same top position as text
-                        width_img = Inches(5.5)      # Width of image
-                        slide.shapes.add_picture(image_stream, left_img, top_img, width=width_img)
-                        app.logger.debug(f"Image added to slide: {title}")
+            # Add image if needed
+            if include_images and (i % 2 == 0):  # Every other slide gets an image
+                image_stream = generate_image(f"{title} related to {content_text}", language)
+                if image_stream:
+                    left_img = Inches(7.0)      # Position to the right
+                    top_img = Inches(1.5)       # Same top position as text
+                    width_img = Inches(5.5)     # Width of image
+                    slide.shapes.add_picture(image_stream, left_img, top_img, width=width_img)
+                    app.logger.debug(f"Image added to slide: {title}")
 
         # Add footer to all slides
         for slide in prs.slides:
