@@ -37,34 +37,34 @@ genai.configure(api_key=genai_api_key)
 # Enhanced theme options with gradients and shadows
 THEMES = {
     "corporate": {
-        "gradient_start": RGBColor(0, 51, 102),  # Dark blue
-        "gradient_end": RGBColor(173, 216, 230),  # Light blue
-        "title_color": RGBColor(255, 255, 255),   # White
-        "text_color": RGBColor(255, 255, 255),    # White
+        "gradient_start": RGBColor(0, 51, 102),
+        "gradient_end": RGBColor(173, 216, 230),
+        "title_color": RGBColor(255, 255, 255),
+        "text_color": RGBColor(255, 255, 255),
         "font_name": "Arial",
         "shadow": True,
     },
     "creative": {
-        "gradient_start": RGBColor(147, 112, 219),  # Purple
-        "gradient_end": RGBColor(255, 182, 193),    # Light pink
-        "title_color": RGBColor(255, 255, 255),     # White
-        "text_color": RGBColor(240, 240, 240),      # Off-white
+        "gradient_start": RGBColor(147, 112, 219),
+        "gradient_end": RGBColor(255, 182, 193),
+        "title_color": RGBColor(255, 255, 255),
+        "text_color": RGBColor(240, 240, 240),
         "font_name": "Montserrat",
         "shadow": True,
     },
     "minimal": {
-        "gradient_start": RGBColor(245, 245, 245),  # Light gray
-        "gradient_end": RGBColor(255, 255, 255),    # White
-        "title_color": RGBColor(33, 33, 33),        # Dark gray
-        "text_color": RGBColor(66, 66, 66),         # Medium gray
+        "gradient_start": RGBColor(245, 245, 245),
+        "gradient_end": RGBColor(255, 255, 255),
+        "title_color": RGBColor(33, 33, 33),
+        "text_color": RGBColor(66, 66, 66),
         "font_name": "Helvetica",
         "shadow": False,
     },
     "bold": {
-        "gradient_start": RGBColor(255, 69, 0),     # Red-orange
-        "gradient_end": RGBColor(255, 215, 0),      # Gold
-        "title_color": RGBColor(255, 255, 255),     # White
-        "text_color": RGBColor(255, 255, 255),      # White
+        "gradient_start": RGBColor(255, 69, 0),
+        "gradient_end": RGBColor(255, 215, 0),
+        "title_color": RGBColor(255, 255, 255),
+        "text_color": RGBColor(255, 255, 255),
         "font_name": "Impact",
         "shadow": True,
     }
@@ -148,7 +148,9 @@ def process_bullet_points(text):
 
 def generate_slide_titles(content, language="en"):
     try:
-        prompt = f"Generate exactly 3 concise slide titles for a presentation on '{content}' in {language}, no preamble or numbering."
+        # Explicitly specify the language in the prompt
+        lang_name = "Hindi" if language == "hi" else "Telugu" if language == "te" else language.capitalize()
+        prompt = f"Generate exactly 3 concise slide titles for a presentation on '{content}' in {lang_name}, no preamble or numbering."
         app.logger.debug(f"Generating titles with prompt: {prompt}")
         model = genai.GenerativeModel("gemini-1.5-flash")
         response = model.generate_content(prompt)
@@ -164,14 +166,16 @@ def generate_slide_titles(content, language="en"):
 
 def generate_slide_content(slide_title, has_image=True, summarize=False, language="en"):
     try:
+        # Explicitly specify the language in the prompt
+        lang_name = "Hindi" if language == "hi" else "Telugu" if language == "te" else language.capitalize()
         if summarize:
-            prompt = f"Summarize content for '{slide_title}' into two concise paragraphs (max 30 words each) in {language}, no preamble or labels."
+            prompt = f"Summarize content for '{slide_title}' into two concise paragraphs (max 30 words each) in {lang_name}, no preamble or labels."
             max_tokens = 100
         elif has_image:
-            prompt = f"Generate two concise paragraphs (max 50 words each) for '{slide_title}' in {language}, no preamble or labels."
+            prompt = f"Generate two concise paragraphs (max 50 words each) for '{slide_title}' in {lang_name}, no preamble or labels."
             max_tokens = 150
         else:
-            prompt = f"Generate six concise bullet points (max 25 words each) for '{slide_title}' in {language}. Use '-' as bullet marker, no numbering."
+            prompt = f"Generate six concise bullet points (max 25 words each) for '{slide_title}' in {lang_name}. Use '-' as bullet marker, no numbering."
             max_tokens = 300
         app.logger.debug(f"Generating content with prompt: {prompt}")
         model = genai.GenerativeModel("gemini-1.5-flash")
@@ -192,8 +196,10 @@ def generate_image(prompt, language="en"):
         return None
     api_url = "https://api.stability.ai/v1/generation/stable-diffusion-xl-1024-v1-0/text-to-image"
     headers = {"Authorization": f"Bearer {stability_api_key}", "Content-Type": "application/json"}
+    # Use language name in prompt for better context
+    lang_name = "Hindi" if language == "hi" else "Telugu" if language == "te" else language.capitalize()
     data = {
-        "text_prompts": [{"text": f"{prompt}, professional high-quality illustration, styled for {language} audience"}],
+        "text_prompts": [{"text": f"{prompt}, professional high-quality illustration, styled for {lang_name} audience"}],
         "cfg_scale": 7,
         "height": 1024,
         "width": 1024,
@@ -215,7 +221,7 @@ def generate_image(prompt, language="en"):
         app.logger.exception(f"Error generating image: {str(e)}")
         return None
 
-def generate_chart(slide, csv_file, chart_type="bar"):
+def generate_chart(slide, csv_file, chart_type="bar", language="en"):
     try:
         df = pd.read_csv(csv_file)
         chart_data = CategoryChartData()
@@ -229,8 +235,9 @@ def generate_chart(slide, csv_file, chart_type="bar"):
             chart_data
         ).chart
         chart.has_title = True
-        chart.chart_title.text_frame.text = "Data Overview"
+        chart.chart_title.text_frame.text = "डेटा अवलोकन" if language == "hi" else "డేటా అవలోకనం" if language == "te" else "Data Overview"
         chart.chart_title.text_frame.paragraphs[0].font.size = Pt(14)
+        chart.chart_title.text_frame.paragraphs[0].font.name = "Mangal" if language == "hi" else "Gautami" if language == "te" else "Arial"
     except Exception as e:
         app.logger.exception("Error generating chart")
 
@@ -252,16 +259,16 @@ def create_presentation(topic, text_file, csv_file, theme="corporate", language=
         title_slide.shapes.title.text = slide_titles[0]
         tf = title_slide.shapes.title.text_frame
         tf.paragraphs[0].font.size = TITLE_FONT_SIZE
-        tf.paragraphs[0].font.name = selected_theme["font_name"]
+        tf.paragraphs[0].font.name = "Mangal" if language == "hi" else "Gautami" if language == "te" else selected_theme["font_name"]
         tf.paragraphs[0].font.color.rgb = selected_theme["title_color"]
         tf.paragraphs[0].font.bold = True
         if selected_theme["shadow"]:
             add_text_shadow(tf)
         if len(title_slide.placeholders) > 1:
             subtitle = title_slide.placeholders[1]
-            subtitle.text = "Powered by AI"
+            subtitle.text = "एआई द्वारा संचालित" if language == "hi" else "AI చే శక్తినిచ్చబడింది" if language == "te" else "Powered by AI"
             subtitle.text_frame.paragraphs[0].font.size = Pt(24)
-            subtitle.text_frame.paragraphs[0].font.name = selected_theme["font_name"]
+            subtitle.text_frame.paragraphs[0].font.name = "Mangal" if language == "hi" else "Gautami" if language == "te" else selected_theme["font_name"]
             subtitle.text_frame.paragraphs[0].font.color.rgb = selected_theme["text_color"]
             if selected_theme["shadow"]:
                 add_text_shadow(subtitle.text_frame)
@@ -276,7 +283,7 @@ def create_presentation(topic, text_file, csv_file, theme="corporate", language=
             slide.shapes.title.text = title
             tf = slide.shapes.title.text_frame
             tf.paragraphs[0].font.size = TITLE_FONT_SIZE
-            tf.paragraphs[0].font.name = selected_theme["font_name"]
+            tf.paragraphs[0].font.name = "Mangal" if language == "hi" else "Gautami" if language == "te" else selected_theme["font_name"]
             tf.paragraphs[0].font.color.rgb = selected_theme["title_color"]
             tf.paragraphs[0].font.bold = True
             if selected_theme["shadow"]:
@@ -300,7 +307,7 @@ def create_presentation(topic, text_file, csv_file, theme="corporate", language=
                 tf.word_wrap = True
                 for paragraph in tf.paragraphs:
                     paragraph.font.size = CONTENT_FONT_SIZE
-                    paragraph.font.name = selected_theme["font_name"]
+                    paragraph.font.name = "Mangal" if language == "hi" else "Gautami" if language == "te" else selected_theme["font_name"]
                     paragraph.font.color.rgb = selected_theme["text_color"]
                     paragraph.space_after = Pt(12)
                     if selected_theme["shadow"]:
@@ -322,7 +329,7 @@ def create_presentation(topic, text_file, csv_file, theme="corporate", language=
                 tf.word_wrap = True
                 for paragraph in tf.paragraphs:
                     paragraph.font.size = CONTENT_FONT_SIZE
-                    paragraph.font.name = selected_theme["font_name"]
+                    paragraph.font.name = "Mangal" if language == "hi" else "Gautami" if language == "te" else selected_theme["font_name"]
                     paragraph.font.color.rgb = selected_theme["text_color"]
                     paragraph.space_after = Pt(12)
                     if selected_theme["shadow"]:
@@ -330,7 +337,7 @@ def create_presentation(topic, text_file, csv_file, theme="corporate", language=
 
             if has_chart:
                 csv_file.seek(0)
-                generate_chart(slide, csv_file, chart_type)
+                generate_chart(slide, csv_file, chart_type, language)
 
         output_dir = "generated_ppt"
         os.makedirs(output_dir, exist_ok=True)

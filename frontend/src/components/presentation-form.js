@@ -87,9 +87,9 @@ export function PresentationForm() {
       if (exportFormat === "pptx") {
         message = "Your PowerPoint presentation is ready. Click the download link below.";
       } else if (exportFormat === "pdf") {
-        message = "Your PDF presentation is ready. Click the download link below.";
+        message = "Your presentation has been generated as a .pptx file. Please convert it to PDF using PowerPoint or an online tool.";
       } else if (exportFormat === "google_slides") {
-        message = "Download the .pptx file and upload it to Google Slides to continue.";
+        message = "Your presentation has been generated as a .pptx file. Please upload it to Google Slides (File > Import).";
       }
 
       toast({
@@ -111,10 +111,8 @@ export function PresentationForm() {
     if (downloadUrl) {
       const a = document.createElement("a");
       a.href = downloadUrl;
-      const exportFormat = form.getValues("exportFormat");
       const topic = form.getValues("topic").trim();
-      let filename = topic ? `${topic}` : "presentation";
-      filename += exportFormat === "pdf" ? ".pdf" : ".pptx";
+      const filename = topic ? `${topic}.pptx` : "presentation.pptx"; // Always .pptx since backend only generates PPTX
       a.download = filename;
       document.body.appendChild(a);
       a.click();
@@ -226,6 +224,8 @@ export function PresentationForm() {
                     <SelectItem value="es">Spanish</SelectItem>
                     <SelectItem value="fr">French</SelectItem>
                     <SelectItem value="de">German</SelectItem>
+                    <SelectItem value="hi">Hindi</SelectItem>
+                    <SelectItem value="te">Telugu</SelectItem>
                   </SelectContent>
                 </Select>
                 <FormMessage />
