@@ -6,7 +6,7 @@ import { ThemeSelector } from "./ThemeSelector";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/Select";
 import { useToast } from "../hooks/use-toast";
 import { useState, useRef } from "react";
-import { Loader2, Upload, FileText, ChartBar, BarChart, LineChart, PieChart, ScatterChart, Users, FileType } from "lucide-react";
+import { Loader2, Upload, FileText, ChartBar, BarChart, LineChart, PieChart, ScatterChart, Users, FileType, FileOutput } from "lucide-react";
 import { usePresentation } from "../contexts/PresentationContext";
 
 // Custom Toggle Switch component
@@ -79,18 +79,32 @@ export function PresentationForm() {
         throw new Error("Failed to generate presentation");
       }
 
+      const exportFormat = data.exportFormat;
       const blob = await response.blob();
       const url = window.URL.createObjectURL(blob);
       setDownloadUrl(url);
 
-      const exportFormat = data.exportFormat;
+      // Get file extension from the actual response
+      let fileExtension = 'pptx';
+      const contentDisposition = response.headers.get('Content-Disposition');
+      if (contentDisposition && contentDisposition.includes('filename=')) {
+        const filename = contentDisposition.split('filename=')[1].trim().replace(/"/g, '');
+        const parts = filename.split('.');
+        if (parts.length > 1) {
+          fileExtension = parts[parts.length - 1];
+        }
+      }
+
+      // Check if this is for Google Slides
+      const isGoogleSlides = response.headers.get('X-Export-Format') === 'google_slides';
+      
       let message;
-      if (exportFormat === "pptx") {
+      if (isGoogleSlides) {
+        message = "Your presentation has been generated. To open in Google Slides, go to drive.google.com, click New → File upload, then import the downloaded file.";
+      } else if (fileExtension === 'pdf') {
+        message = "Your PDF presentation is ready. Click the download link below.";
+      } else {
         message = "Your PowerPoint presentation is ready. Click the download link below.";
-      } else if (exportFormat === "pdf") {
-        message = "Your presentation has been generated as a .pptx file. Please convert it to PDF using PowerPoint or an online tool.";
-      } else if (exportFormat === "google_slides") {
-        message = "Your presentation has been generated as a .pptx file. Please upload it to Google Slides (File > Import).";
       }
 
       toast({
@@ -113,7 +127,15 @@ export function PresentationForm() {
       const a = document.createElement("a");
       a.href = downloadUrl;
       const topic = form.getValues("topic").trim();
-      const filename = topic ? `${topic}.pptx` : "presentation.pptx"; // Always .pptx since backend only generates PPTX
+      const exportFormat = form.getValues("exportFormat");
+      
+      // Set file extension based on export format
+      let extension = 'pptx';
+      if (exportFormat === 'pdf') {
+        extension = 'pdf';
+      }
+      
+      const filename = topic ? `${topic}.${extension}` : `presentation.${extension}`;
       a.download = filename;
       document.body.appendChild(a);
       a.click();
@@ -301,15 +323,17 @@ export function PresentationForm() {
           />
         )}
 
-        <div className="grid gap-4 md:grid-cols-2">
-          <FormField
-            control={form.control}
-            name="includeImages"
-            render={({ field }) => (
-              <FormItem className="flex items-center justify-between space-y-0 rounded-lg border p-4 shadow-sm">
-                <div>
-                  <FormLabel className="font-medium">AI-Generated Images</FormLabel>
-                  <FormDescription>Add relevant visuals to your slides</FormDescription>
+        <FormField
+          control={form.control}
+          name="includeImages"
+          render={({ field }) => (
+            <FormItem>
+              <div className="flex items-center justify-between">
+                <div className="space-y-0.5">
+                  <FormLabel className="text-base">Include Images</FormLabel>
+                  <FormDescription>
+                    Generate AI images for slides
+                  </FormDescription>
                 </div>
                 <FormControl>
                   <CustomToggle
@@ -317,29 +341,30 @@ export function PresentationForm() {
                     onCheckedChange={field.onChange}
                   />
                 </FormControl>
-              </FormItem>
-            )}
-          />
+              </div>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
 
-          <FormField
-            control={form.control}
-            name="summarize"
-            render={({ field }) => (
-              <FormItem className="flex items-center justify-between space-y-0 rounded-lg border p-4 shadow-sm">
-                <div>
-                  <FormLabel className="font-medium">Smart Summarization</FormLabel>
-                  <FormDescription>Condense content for better impact</FormDescription>
-                </div>
-                <FormControl>
-                  <CustomToggle
-                    checked={field.value}
-                    onCheckedChange={field.onChange}
-                  />
-                </FormControl>
-              </FormItem>
-            )}
-          />
-        </div>
+        <FormField
+          control={form.control}
+          name="summarize"
+          render={({ field }) => (
+            <FormItem className="flex items-center justify-between space-y-0 rounded-lg border p-4 shadow-sm">
+              <div>
+                <FormLabel className="font-medium">Smart Summarization</FormLabel>
+                <FormDescription>Condense content for better impact</FormDescription>
+              </div>
+              <FormControl>
+                <CustomToggle
+                  checked={field.value}
+                  onCheckedChange={field.onChange}
+                />
+              </FormControl>
+            </FormItem>
+          )}
+        />
 
         <div className="grid gap-4 md:grid-cols-2">
           <FormField
@@ -383,11 +408,23 @@ export function PresentationForm() {
                     </SelectTrigger>
                   </FormControl>
                   <SelectContent className="w-full max-w-[200px] bg-white z-50">
-                    <SelectItem value="pptx">PowerPoint (.pptx)</SelectItem>
-                    <SelectItem value="pdf">PDF</SelectItem>
-                    <SelectItem value="google_slides">Google Slides</SelectItem>
+                    <SelectItem value="pptx">
+                      <div className="flex items-center">
+                        <FileType className="w-4 h-4 mr-2 text-blue-500" />
+                        PowerPoint (.pptx)
+                      </div>
+                    </SelectItem>
+                    <SelectItem value="pdf">
+                      <div className="flex items-center">
+                        <FileOutput className="w-4 h-4 mr-2 text-red-500" />
+                        PDF (Text Only)
+                      </div>
+                    </SelectItem>
                   </SelectContent>
                 </Select>
+                <FormDescription>
+                  Choose your preferred presentation format
+                </FormDescription>
                 <FormMessage />
               </FormItem>
             )}

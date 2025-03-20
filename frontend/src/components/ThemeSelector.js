@@ -11,9 +11,9 @@ export function ThemeSelector({ value, variant, onChange, onVariantChange }) {
   ];
 
   const variants = [
-    { id: "professional", name: "Professional" },
-    { id: "modern", name: "Modern" },
-    { id: "classic", name: "Classic" },
+    { id: "professional", name: "Professional", description: "Clean and structured layout" },
+    { id: "creative", name: "Creative", description: "Dynamic and expressive design" },
+    { id: "minimal", name: "Minimal", description: "Simple and uncluttered presentation" },
   ];
 
   return (
@@ -55,11 +55,27 @@ export function ThemeSelector({ value, variant, onChange, onVariantChange }) {
                   value={item.id}
                   className="focus:bg-gray-100 focus:text-gray-900"
                 >
-                  {item.name}
+                  <div className="flex flex-col py-1">
+                    <span className="font-medium">{item.name}</span>
+                    <span className="text-xs text-gray-500">{item.description}</span>
+                  </div>
                 </SelectItem>
               ))}
             </SelectContent>
           </Select>
+        </div>
+      </div>
+
+      <div className={cn(
+        "mt-4 p-4 rounded-md border",
+        value === "corporate" && "bg-blue-50 border-blue-200",
+        value === "creative" && "bg-purple-50 border-purple-200",
+        value === "minimal" && "bg-gray-50 border-gray-200",
+        value === "bold" && "bg-orange-50 border-orange-200"
+      )}>
+        <div className="text-sm text-gray-600">
+          Preview: <span className="font-medium">{themes.find(t => t.id === value)?.name || "Theme"}</span> + 
+          <span className="font-medium"> {variants.find(v => v.id === variant)?.name || "Variant"}</span>
         </div>
       </div>
     </div>
